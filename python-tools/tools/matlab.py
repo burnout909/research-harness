@@ -334,6 +334,9 @@ def _find_matlab_executable() -> list[str]:
 def matlab_run_with_gui(script: str, work_dir: str | None = None) -> dict[str, Any]:
     """Run a MATLAB script via subprocess with GUI (figure windows visible).
 
+    Launches MATLAB GUI in the background and polls for experiment_result.json.
+    No timeout — waits until the result file appears or MATLAB exits.
+
     Args:
         script: MATLAB script content.
         work_dir: Working directory for execution.
@@ -341,6 +344,8 @@ def matlab_run_with_gui(script: str, work_dir: str | None = None) -> dict[str, A
     Returns:
         Dict with 'output' and 'files' (created files).
     """
+    import time
+
     wd = Path(work_dir) if work_dir else Path(tempfile.mkdtemp())
     wd.mkdir(parents=True, exist_ok=True)
 
@@ -358,38 +363,47 @@ def matlab_run_with_gui(script: str, work_dir: str | None = None) -> dict[str, A
     script_path = wd / "mcp_run.m"
     script_path.write_text(script)
 
+    # Remove stale result file if it exists
+    result_file = wd / "experiment_result.json"
+    if result_file.exists():
+        result_file.unlink()
+
     matlab_base = _find_matlab_executable()
     matlab_cmd = f"cd('{wd}'); mcp_run; pause(2); exit"
     cmd = matlab_base + ["-nosplash", "-r", matlab_cmd]
 
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    stdout, stderr = proc.communicate()
 
-    # Collect created files
-    files = sorted(str(f) for f in wd.iterdir() if f.name != "mcp_run.m")
+    # Poll for experiment_result.json — no timeout
+    while True:
+        if result_file.exists():
+            try:
+                content = result_file.read_text()
+                if content.strip():
+                    experiment_data = json.loads(content)
+                    files = sorted(str(f) for f in wd.iterdir() if f.name != "mcp_run.m")
+                    return {
+                        "output": "MATLAB GUI execution completed.",
+                        "experiment_result": experiment_data,
+                        "files": files,
+                    }
+            except (json.JSONDecodeError, OSError):
+                pass
 
-    # Check for result JSON (e.g. from runRRTExperiment)
-    result_file = wd / "experiment_result.json"
-    if result_file.exists():
-        try:
-            experiment_data = json.loads(result_file.read_text())
+        # MATLAB process exited without producing result JSON
+        if proc.poll() is not None:
+            stdout, stderr = proc.communicate()
+            output_text = stdout.decode(errors="replace") if stdout else ""
+            error_text = stderr.decode(errors="replace") if stderr else ""
+            files = sorted(str(f) for f in wd.iterdir() if f.name != "mcp_run.m")
             return {
-                "output": "MATLAB GUI execution completed.",
-                "experiment_result": experiment_data,
+                "output": output_text or "MATLAB exited without result JSON.",
+                "errors": error_text if error_text else None,
+                "returncode": proc.returncode,
                 "files": files,
             }
-        except json.JSONDecodeError:
-            pass
 
-    output_text = stdout.decode(errors="replace") if stdout else ""
-    error_text = stderr.decode(errors="replace") if stderr else ""
-
-    return {
-        "output": output_text or "MATLAB GUI execution completed.",
-        "errors": error_text if error_text else None,
-        "returncode": proc.returncode,
-        "files": files,
-    }
+        time.sleep(1)
 
 
 def _write_mock_mat(path: Path) -> None:

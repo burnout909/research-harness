@@ -27,7 +27,8 @@
         "PROJECT_ROOT": "/Users/jun/Desktop/researchcat/research-harness",
         "MATLAB_ROOT": "/Applications/MATLAB_R2025b.app",
         "MATLAB_MOCK": "false"
-      }
+      },
+      "timeout": 600000
     }
   },
 
