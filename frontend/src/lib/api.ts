@@ -87,7 +87,14 @@ export async function sendMessage(
     throw new Error(`Failed to send message: ${res.status} ${errText}`);
   }
 
-  const raw: MessageV2WithParts = await res.json();
+  // The server uses streaming response (hono stream()).
+  // Read the full body as text first, then parse — res.json() fails on
+  // chunked/streaming responses that arrive incrementally.
+  const body = await res.text();
+  if (!body) {
+    throw new Error("서버에서 빈 응답을 받았습니다. AI 모델 설정을 확인해주세요.");
+  }
+  const raw: MessageV2WithParts = JSON.parse(body);
   const text = extractTextFromParts(raw);
 
   return { text, raw };
