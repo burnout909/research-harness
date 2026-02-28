@@ -32,6 +32,7 @@ function formatSize(bytes: number): string {
 export default function Home() {
   const [splitMode, setSplitMode] = useState<SplitMode>("horizontal");
   const [uploadedFiles, setUploadedFiles] = useState<FileInfo[]>([]);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   const viewerResize = useResizable({
     direction: splitMode === "horizontal" ? "horizontal" : "vertical",
@@ -55,11 +56,32 @@ export default function Home() {
     setUploadedFiles((prev) => [...prev, ...newFiles]);
   }, []);
 
+  const handleFileSelect = useCallback((file: FileInfo) => {
+    setUploadedFiles((prev) => {
+      const exists = prev.some((f) => f.path === file.path);
+      if (exists) return prev;
+      return [...prev, file];
+    });
+  }, []);
+
+  const handleFileCreated = useCallback((file: FileInfo) => {
+    setUploadedFiles((prev) => {
+      const exists = prev.some((f) => f.path === file.path);
+      if (exists) return prev;
+      return [...prev, file];
+    });
+    setRefreshTrigger((prev) => prev + 1);
+  }, []);
+
+  const handleRefresh = useCallback(() => {
+    setRefreshTrigger((prev) => prev + 1);
+  }, []);
+
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-zinc-950">
       {/* Left sidebar — fixed width, no resize */}
       <div style={{ width: SIDEBAR_WIDTH, minWidth: SIDEBAR_WIDTH }} className="flex-shrink-0">
-        <Sidebar onFilesUploaded={handleFilesUploaded} />
+        <Sidebar onFilesUploaded={handleFilesUploaded} onFileSelect={handleFileSelect} refreshTrigger={refreshTrigger} onRefresh={handleRefresh} />
       </div>
 
       {/* Main content area — viewer + chat */}
@@ -72,7 +94,7 @@ export default function Home() {
             </div>
             <ResizeHandle direction="horizontal" onMouseDown={viewerResize.onMouseDown} />
             <div className="flex-1 overflow-hidden">
-              <ChatWindow splitMode={splitMode} onToggleSplit={toggleSplit} uploadedFiles={uploadedFiles} />
+              <ChatWindow splitMode={splitMode} onToggleSplit={toggleSplit} uploadedFiles={uploadedFiles} onFileCreated={handleFileCreated} />
             </div>
           </>
         ) : (
@@ -83,7 +105,7 @@ export default function Home() {
             </div>
             <ResizeHandle direction="vertical" onMouseDown={viewerResize.onMouseDown} />
             <div className="flex-1 overflow-hidden">
-              <ChatWindow splitMode={splitMode} onToggleSplit={toggleSplit} uploadedFiles={uploadedFiles} />
+              <ChatWindow splitMode={splitMode} onToggleSplit={toggleSplit} uploadedFiles={uploadedFiles} onFileCreated={handleFileCreated} />
             </div>
           </div>
         )}
