@@ -23,14 +23,11 @@ interface FileTreeProps {
   refreshTrigger?: number;
 }
 
-const DISPLAY_NAMES: Record<string, string> = {
-  uploads: "original",
-  outputs: "output",
-};
+const DISPLAY_NAMES: Record<string, string> = {};
 
 // Strip timestamp prefix from uploaded filenames (e.g. "1709012345_report.xlsx" → "report.xlsx")
 function stripTimestampPrefix(name: string, relativePath: string): string {
-  if (relativePath.startsWith("uploads/")) {
+  if (relativePath.startsWith("originals/")) {
     return name.replace(/^\d+_/, "");
   }
   return name;
@@ -228,6 +225,12 @@ export default function FileTree({ onFileSelect, refreshTrigger }: FileTreeProps
   useEffect(() => {
     fetchFiles();
   }, [fetchFiles, refreshTrigger]);
+
+  // Poll for new files every 3 seconds
+  useEffect(() => {
+    const interval = setInterval(fetchFiles, 3000);
+    return () => clearInterval(interval);
+  }, [fetchFiles]);
 
   const handleFileSelect = useCallback((file: FileInfo) => {
     // Extract relativePath from the API path

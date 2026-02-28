@@ -1,11 +1,24 @@
 # Research Harness — Project Rules
 
 ## Data Management Protocol
-- Raw uploads: data/uploads/ (read-only, never modify or delete)
-- Analysis results: data/outputs/ (processed tables, graphs)
-- MATLAB work: data/matlab/ (scripts, .mat results)
-- Papers/documents: data/manuscripts/ (drafts, final versions)
-- Session notes: data/sessions/ (auto-generated context for continuity)
+- data/originals/: Raw uploaded data (read-only, never modify or delete)
+- data/working/: Intermediate work — drafts, temp analysis, scripts, exploratory plots
+- data/outputs/: Final deliverables only — polished tables, final graphs, finished reports
+
+### File Routing Rules
+Save to **data/working/** when:
+- Exploring or cleaning data
+- Generating drafts or intermediate versions
+- Running test simulations or trial plots
+- Any file the researcher hasn't explicitly requested as a final deliverable
+
+Save to **data/outputs/** only when:
+- The researcher explicitly asks for a final result ("최종 결과 정리해줘", "이걸로 확정")
+- Producing a named deliverable (final Excel report, publication-ready figure, manuscript)
+- The task is clearly a one-step final output ("이 데이터 엑셀로 변환해줘")
+
+When unsure, default to **data/working/**.
+
 - File naming: {experiment_name}_{YYYYMMDD}_{v01}.{ext}
 - Never overwrite existing files — always increment version number
 
@@ -33,7 +46,7 @@ Confirm with the researcher before:
 - Equations: LaTeX notation
 
 ## Prohibited Actions
-- Modifying raw data in data/uploads/
+- Modifying raw data in data/originals/
 - Deleting files without researcher confirmation
 - Changing experiment parameters without approval
 - Making definitive statements about uncertain results
