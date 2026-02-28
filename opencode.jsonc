@@ -1,0 +1,37 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+
+  // ── 모델 설정 ──
+  "model": "google/gemini-3-pro-preview",
+  "small_model": "google/gemini-3-flash-preview",
+
+  // ── 기본 에이전트 ──
+  "default_agent": "research",
+
+  // ── 에이전트 오버라이드 ──
+  "agent": {
+    "build": {
+      "hidden": true
+    },
+    "plan": {
+      "hidden": true
+    }
+  },
+
+  // ── MCP 서버 ──
+  "mcp": {
+    "research-harness": {
+      "type": "local",
+      "command": ["python", "python-tools/server.py"],
+      "environment": {
+        "MATLAB_ROOT": "/usr/local/MATLAB/R2024b",
+        "MATLAB_MOCK": "true"
+      }
+    }
+  },
+
+  // ── 추가 instruction 파일 ──
+  "instructions": [
+    "AGENTS.md"
+  ]
+}
