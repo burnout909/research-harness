@@ -1,7 +1,7 @@
 ---
 description: "Research assistant manager for experiment data management, simulation automation, and academic paper drafting"
 mode: primary
-model: google/gemini-2.5-pro
+model: google/gemini-3-pro-preview
 steps: 50
 color: "#2E86AB"
 ---

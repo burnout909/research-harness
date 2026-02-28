@@ -114,19 +114,24 @@ export default function ChatWindow({ splitMode, onToggleSplit, uploadedFiles, on
         });
 
         // Detect completed file-creation tools
+        // SSE structure: { type: "tool", tool: "research-harness_write_excel",
+        //   state: { status: "completed", input: { file_path: "..." } } }
+        const toolState = part.state as { status?: string; input?: Record<string, unknown> } | undefined;
+        const toolName = (part.tool as string) || "";
+        // Match tool name: "research-harness_write_excel" ends with "write_excel"
+        const matchedTool = Object.keys(FILE_TOOL_MAP).find((k) => toolName.endsWith(k));
+
         if (
-          part.state === "completed" &&
-          part.name &&
-          part.name in FILE_TOOL_MAP &&
+          toolState?.status === "completed" &&
+          matchedTool &&
           !processedFilePartIds.current.has(part.id)
         ) {
           processedFilePartIds.current.add(part.id);
-          const argKey = FILE_TOOL_MAP[part.name];
-          const diskPath = part.args?.[argKey] as string | undefined;
+          const argKey = FILE_TOOL_MAP[matchedTool];
+          const diskPath = toolState.input?.[argKey] as string | undefined;
           if (diskPath) {
             const fileName = diskPath.split("/").pop() || diskPath;
             const apiPath = diskPathToApiPath(diskPath);
-            // Delay slightly to let the MCP server finish writing the file
             setTimeout(() => {
               onFileCreated?.({
                 name: fileName,
