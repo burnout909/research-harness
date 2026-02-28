@@ -7,13 +7,43 @@ import MessageBlock from "./MessageBlock";
 import SplitToggle, { type SplitMode } from "../layout/SplitToggle";
 import { type FileInfo } from "../viewer/FileCard";
 
+// Map of file-creating tool names → the arg key that holds the output path
+const FILE_TOOL_MAP: Record<string, string> = {
+  write_excel: "file_path",
+  write_docx: "file_path",
+  create_plot: "output_path",
+  convert_mat_to_excel: "output_path",
+  generate_manuscript: "output_path",
+};
+
+/** Convert a disk path like "data/outputs/result.xlsx" to an API path */
+function diskPathToApiPath(diskPath: string): string {
+  // Strip leading "./" or absolute path prefixes, normalise to "data/..."
+  let p = diskPath.replace(/\\/g, "/");
+  const idx = p.indexOf("data/");
+  if (idx >= 0) p = p.slice(idx); // "data/outputs/result.xlsx"
+  return `/api/${p}`;
+}
+
+function getFileType(name: string): FileInfo["type"] {
+  const ext = name.split(".").pop()?.toLowerCase();
+  const map: Record<string, FileInfo["type"]> = {
+    xlsx: "xlsx", xls: "xlsx", csv: "csv",
+    docx: "docx", doc: "docx",
+    pdf: "pdf",
+    png: "png", jpg: "jpg", jpeg: "jpg", svg: "svg",
+  };
+  return map[ext || ""] || "unknown";
+}
+
 interface ChatWindowProps {
   splitMode: SplitMode;
   onToggleSplit: () => void;
   uploadedFiles: FileInfo[];
+  onFileCreated?: (file: FileInfo) => void;
 }
 
-export default function ChatWindow({ splitMode, onToggleSplit, uploadedFiles }: ChatWindowProps) {
+export default function ChatWindow({ splitMode, onToggleSplit, uploadedFiles, onFileCreated }: ChatWindowProps) {
   const [messages, setMessages] = useState<Message[]>([
     { role: "assistant", content: "Welcome to Research Harness. How can I help you today?" },
   ]);
@@ -26,6 +56,7 @@ export default function ChatWindow({ splitMode, onToggleSplit, uploadedFiles }: 
   const streamingTextRef = useRef("");
   const streamingPartsRef = useRef<MessagePart[]>([]);
   const processedMsgIds = useRef(new Set<string>());
+  const processedFilePartIds = useRef(new Set<string>());
   const sendingRef = useRef(false);
 
   const scrollToBottom = useCallback(() => {
@@ -81,6 +112,31 @@ export default function ChatWindow({ splitMode, onToggleSplit, uploadedFiles }: 
           streamingPartsRef.current = next;
           return next;
         });
+
+        // Detect completed file-creation tools
+        if (
+          part.state === "completed" &&
+          part.name &&
+          part.name in FILE_TOOL_MAP &&
+          !processedFilePartIds.current.has(part.id)
+        ) {
+          processedFilePartIds.current.add(part.id);
+          const argKey = FILE_TOOL_MAP[part.name];
+          const diskPath = part.args?.[argKey] as string | undefined;
+          if (diskPath) {
+            const fileName = diskPath.split("/").pop() || diskPath;
+            const apiPath = diskPathToApiPath(diskPath);
+            // Delay slightly to let the MCP server finish writing the file
+            setTimeout(() => {
+              onFileCreated?.({
+                name: fileName,
+                type: getFileType(fileName),
+                path: apiPath,
+              });
+            }, 500);
+          }
+        }
+
         scrollToBottom();
       },
       onMessageComplete: (info) => {
@@ -121,7 +177,7 @@ export default function ChatWindow({ splitMode, onToggleSplit, uploadedFiles }: 
     });
 
     return cleanup;
-  }, [sessionId, scrollToBottom]);
+  }, [sessionId, scrollToBottom, onFileCreated]);
 
   const handleSend = useCallback(async () => {
     const text = input.trim();

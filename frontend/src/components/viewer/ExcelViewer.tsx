@@ -16,21 +16,31 @@ export default function ExcelViewer({ filePath, fileData }: ExcelViewerProps) {
   useEffect(() => {
     if (!fileData) return;
 
-    const wb = XLSX.read(fileData, { type: "array" });
-    setSheets(wb.SheetNames);
-    if (wb.SheetNames.length > 0) {
-      setActiveSheet(wb.SheetNames[0]);
-      const data = XLSX.utils.sheet_to_json<string[]>(wb.Sheets[wb.SheetNames[0]], { header: 1 });
-      setRows(data);
+    try {
+      const wb = XLSX.read(fileData, { type: "array" });
+      setSheets(wb.SheetNames);
+      if (wb.SheetNames.length > 0) {
+        setActiveSheet(wb.SheetNames[0]);
+        const data = XLSX.utils.sheet_to_json<string[]>(wb.Sheets[wb.SheetNames[0]], { header: 1 });
+        setRows(data);
+      }
+    } catch {
+      setSheets([]);
+      setActiveSheet("");
+      setRows([]);
     }
   }, [fileData]);
 
   const switchSheet = (name: string) => {
     if (!fileData) return;
     setActiveSheet(name);
-    const wb = XLSX.read(fileData, { type: "array" });
-    const data = XLSX.utils.sheet_to_json<string[]>(wb.Sheets[name], { header: 1 });
-    setRows(data);
+    try {
+      const wb = XLSX.read(fileData, { type: "array" });
+      const data = XLSX.utils.sheet_to_json<string[]>(wb.Sheets[name], { header: 1 });
+      setRows(data);
+    } catch {
+      setRows([]);
+    }
   };
 
   if (!fileData) {

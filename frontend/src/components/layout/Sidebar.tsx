@@ -2,10 +2,15 @@
 
 import { useState } from "react";
 import FileUpload, { type UploadedFile } from "@/components/upload/FileUpload";
+import FileTree from "@/components/layout/FileTree";
+import { type FileInfo } from "@/components/viewer/FileCard";
 
 interface SidebarProps {
   onNewSession?: () => void;
   onFilesUploaded?: (files: UploadedFile[]) => void;
+  onFileSelect?: (file: FileInfo) => void;
+  refreshTrigger?: number;
+  onRefresh?: () => void;
 }
 
 interface NavItem {
@@ -44,8 +49,13 @@ const NAV_ITEMS: NavItem[] = [
   },
 ];
 
-export default function Sidebar({ onNewSession, onFilesUploaded }: SidebarProps) {
+export default function Sidebar({ onNewSession, onFilesUploaded, onFileSelect, refreshTrigger = 0, onRefresh }: SidebarProps) {
   const [activeNav, setActiveNav] = useState("files");
+
+  const handleUploadComplete = (files: UploadedFile[]) => {
+    onFilesUploaded?.(files);
+    onRefresh?.();
+  };
 
   return (
     <div className="flex flex-col h-full bg-zinc-950 border-r border-zinc-800">
@@ -77,17 +87,13 @@ export default function Sidebar({ onNewSession, onFilesUploaded }: SidebarProps)
       {/* Content area based on active nav */}
       <div className="flex-1 overflow-y-auto px-2 py-2">
         {activeNav === "files" && (
-          <div className="space-y-2">
-            <FileUpload onUploadComplete={(files) => onFilesUploaded?.(files)} />
-            <div className="text-xs text-zinc-600 px-2 py-1 uppercase tracking-wider">Workspace</div>
-            {["data/uploads", "data/outputs", "data/matlab", "data/templates"].map((dir) => (
-              <button
-                key={dir}
-                className="w-full text-left px-2 py-1 text-xs text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50 rounded transition-colors"
-              >
-                {dir}
-              </button>
-            ))}
+          <div className="flex flex-col h-full">
+            <div className="flex-shrink-0">
+              <FileUpload compact onUploadComplete={handleUploadComplete} />
+            </div>
+            <div className="flex-1 overflow-y-auto mt-1">
+              <FileTree onFileSelect={(file) => onFileSelect?.(file)} refreshTrigger={refreshTrigger} />
+            </div>
           </div>
         )}
         {activeNav === "sessions" && (
