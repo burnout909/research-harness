@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { writeFile, mkdir } from "fs/promises";
 import path from "path";
 
-const UPLOAD_DIR = path.join(process.cwd(), "..", "data", "uploads");
+const UPLOAD_DIR = path.join(process.cwd(), "..", "data", "originals");
 
 const ALLOWED_EXTENSIONS = new Set([
   ".xlsx", ".xls", ".csv",

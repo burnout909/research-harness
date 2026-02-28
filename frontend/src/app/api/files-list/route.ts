@@ -23,6 +23,8 @@ async function scanDir(dir: string, baseDir: string): Promise<FileEntry[]> {
 
   for (const item of items) {
     if (item.startsWith(".")) continue;
+    if (HIDDEN_FILES.has(item)) continue;
+    if (HIDDEN_EXTENSIONS.has(path.extname(item).toLowerCase())) continue;
 
     const fullPath = path.join(dir, item);
     try {
@@ -48,7 +50,11 @@ async function scanDir(dir: string, baseDir: string): Promise<FileEntry[]> {
   return entries;
 }
 
-const VISIBLE_DIRS = ["uploads", "working", "outputs"];
+const VISIBLE_DIRS = ["originals", "working", "outputs"];
+
+// Hide temporary/internal files from the file tree
+const HIDDEN_FILES = new Set(["_run.m", "mcp_run.m", "experiment_result.json"]);
+const HIDDEN_EXTENSIONS = new Set([".mat"]);
 
 export async function GET() {
   try {
