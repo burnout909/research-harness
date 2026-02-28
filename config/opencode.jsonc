@@ -5,7 +5,7 @@
       "command": "python-tools/.venv/bin/python3",
       "args": ["python-tools/server.py"],
       "env": {
-        "MATLAB_ROOT": "/usr/local/MATLAB/R2024b",
+        "MATLAB_ROOT": "/Applications/MATLAB_R2025b.app",
         "MATLAB_MOCK": "true",
         "PYTHONPATH": "."
       }

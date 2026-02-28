@@ -176,20 +176,20 @@ def matlab_run(script: str, work_dir: str | None = None) -> dict[str, Any]:
             "files": [str(mat_path), str(fig_path)],
         }
 
-    # Write script to file
-    script_path = wd / "_run.m"
+    # Write script to file (name must be a valid MATLAB identifier)
+    script_path = wd / "mcp_run.m"
     script_path.write_text(script)
 
     # Run via local MATLAB subprocess (headless / no GUI)
-    matlab_exe = _find_matlab_executable()
-    matlab_cmd = f"cd('{wd}'); run('{script_path}'); exit"
-    cmd = [matlab_exe, "-nosplash", "-nodesktop", "-batch", matlab_cmd]
+    matlab_base = _find_matlab_executable()
+    matlab_cmd = f"cd('{wd}'); mcp_run"
+    cmd = matlab_base + ["-nosplash", "-nodesktop", "-batch", matlab_cmd]
 
     proc = subprocess.run(
         cmd, capture_output=True, timeout=600,
     )
 
-    files = sorted(str(f) for f in wd.iterdir() if f.name != "_run.m")
+    files = sorted(str(f) for f in wd.iterdir() if f.name != "mcp_run.m")
 
     output_text = proc.stdout.decode(errors="replace") if proc.stdout else ""
     error_text = proc.stderr.decode(errors="replace") if proc.stderr else ""
@@ -279,8 +279,12 @@ def matlab_get_figures(work_dir: str = ".") -> list[str]:
 
 # ── GUI execution (subprocess) ────────────────────────────────────────
 
-def _find_matlab_executable() -> str:
-    """Find the MATLAB executable path on the current platform."""
+def _find_matlab_executable() -> list[str]:
+    """Find the MATLAB executable and any necessary arch flags.
+
+    Returns a list of command parts, e.g. ["/path/to/matlab"] or
+    ["/path/to/matlab", "-maci64"] when Rosetta is needed.
+    """
     system = platform.system()
 
     if system == "Darwin":
@@ -289,9 +293,18 @@ def _find_matlab_executable() -> str:
         for pat in ["/Applications/MATLAB_R*.app"]:
             matches = sorted(_glob.glob(pat), reverse=True)
             if matches:
-                exe = Path(matches[0]) / "bin" / "matlab"
+                app_path = Path(matches[0])
+                exe = app_path / "bin" / "matlab"
                 if exe.exists():
-                    return str(exe)
+                    # Apple Silicon without native maca64 binaries →
+                    # run entire launcher under Rosetta so uname
+                    # reports i386 and the script picks maci64
+                    if platform.machine() == "arm64":
+                        maca64_dir = app_path / "bin" / "maca64"
+                        maci64_dir = app_path / "bin" / "maci64"
+                        if not maca64_dir.exists() and maci64_dir.exists():
+                            return ["arch", "-x86_64", str(exe)]
+                    return [str(exe)]
         raise FileNotFoundError(
             "MATLAB not found in /Applications/. "
             "Install MATLAB or set MATLAB_ROOT environment variable."
@@ -302,19 +315,19 @@ def _find_matlab_executable() -> str:
         if matlab_root:
             exe = Path(matlab_root) / "bin" / "matlab.exe"
             if exe.exists():
-                return str(exe)
+                return [str(exe)]
         # Try PATH
         import shutil
         found = shutil.which("matlab")
         if found:
-            return found
+            return [found]
         raise FileNotFoundError("MATLAB not found. Set MATLAB_ROOT or add matlab to PATH.")
 
     else:  # Linux
         import shutil
         found = shutil.which("matlab")
         if found:
-            return found
+            return [found]
         raise FileNotFoundError("MATLAB not found in PATH.")
 
 
@@ -347,7 +360,7 @@ def matlab_run_with_gui(script: str, work_dir: str | None = None) -> dict[str, A
             "files": [str(mat_path), str(fig_path)],
         }
 
-    script_path = wd / "_run.m"
+    script_path = wd / "mcp_run.m"
     script_path.write_text(script)
 
     # Remove stale result file if it exists
@@ -355,9 +368,9 @@ def matlab_run_with_gui(script: str, work_dir: str | None = None) -> dict[str, A
     if result_file.exists():
         result_file.unlink()
 
-    matlab_exe = _find_matlab_executable()
-    matlab_cmd = f"cd('{wd}'); run('{script_path}'); pause(2); exit"
-    cmd = [matlab_exe, "-nosplash", "-r", matlab_cmd]
+    matlab_base = _find_matlab_executable()
+    matlab_cmd = f"cd('{wd}'); mcp_run; pause(2); exit"
+    cmd = matlab_base + ["-nosplash", "-r", matlab_cmd]
 
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
@@ -368,7 +381,7 @@ def matlab_run_with_gui(script: str, work_dir: str | None = None) -> dict[str, A
                 content = result_file.read_text()
                 if content.strip():
                     experiment_data = json.loads(content)
-                    files = sorted(str(f) for f in wd.iterdir() if f.name != "_run.m")
+                    files = sorted(str(f) for f in wd.iterdir() if f.name != "mcp_run.m")
                     return {
                         "output": "MATLAB GUI execution completed.",
                         "experiment_result": experiment_data,
@@ -382,7 +395,7 @@ def matlab_run_with_gui(script: str, work_dir: str | None = None) -> dict[str, A
             stdout, stderr = proc.communicate()
             output_text = stdout.decode(errors="replace") if stdout else ""
             error_text = stderr.decode(errors="replace") if stderr else ""
-            files = sorted(str(f) for f in wd.iterdir() if f.name != "_run.m")
+            files = sorted(str(f) for f in wd.iterdir() if f.name != "mcp_run.m")
             return {
                 "output": output_text or "MATLAB exited without result JSON.",
                 "errors": error_text if error_text else None,

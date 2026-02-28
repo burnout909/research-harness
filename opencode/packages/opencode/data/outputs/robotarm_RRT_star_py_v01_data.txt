@@ -1,0 +1,5 @@
+Success: False
+Cost: inf
+Time: 1.1435
+Iterations: 3000
+Nodes: 641

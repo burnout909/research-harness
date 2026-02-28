@@ -25,7 +25,7 @@ interface FileTreeProps {
 
 const DISPLAY_NAMES: Record<string, string> = {
   uploads: "original",
-  outputs: "result",
+  outputs: "output",
 };
 
 // Strip timestamp prefix from uploaded filenames (e.g. "1709012345_report.xlsx" → "report.xlsx")
