@@ -2,7 +2,9 @@
 
 import json
 import os
+import platform
 import struct
+import subprocess
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -22,6 +24,38 @@ def _get_engine():
             "MATLAB Engine for Python is not installed. "
             "Set MATLAB_MOCK=true to use mock mode."
         )
+
+
+# ── Open MATLAB GUI ──────────────────────────────────────────────────
+
+def matlab_open() -> dict[str, Any]:
+    """Open MATLAB GUI application on the user's machine.
+
+    Returns:
+        Dict with 'success' (bool) and 'message'.
+    """
+    system = platform.system()
+    try:
+        if system == "Darwin":
+            subprocess.Popen(["open", "-a", "MATLAB"])
+        elif system == "Windows":
+            matlab_root = os.environ.get("MATLAB_ROOT", "")
+            if matlab_root:
+                exe = Path(matlab_root) / "bin" / "matlab.exe"
+                subprocess.Popen([str(exe)])
+            else:
+                subprocess.Popen(["matlab"])
+        else:  # Linux
+            subprocess.Popen(["matlab", "-desktop"])
+
+        return {"success": True, "message": f"MATLAB GUI launched on {system}."}
+    except FileNotFoundError:
+        return {
+            "success": False,
+            "message": "MATLAB not found. Please ensure MATLAB is installed and available in PATH.",
+        }
+    except Exception as e:
+        return {"success": False, "message": f"Failed to launch MATLAB: {e}"}
 
 
 # ── Script generation ────────────────────────────────────────────────

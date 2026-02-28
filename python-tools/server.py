@@ -9,6 +9,7 @@ from tools.excel import excel_read, excel_write, mat_to_excel
 from tools.docx_tool import docx_read, docx_write, manuscript_generate
 from tools.analysis import pandas_analyze, plot_create
 from tools.matlab import (
+    matlab_open,
     matlab_generate_script,
     matlab_run,
     matlab_check_convergence,
@@ -110,6 +111,16 @@ def create_plot(
 
 
 # ── MATLAB tools ─────────────────────────────────────────────────────
+
+@mcp.tool()
+def open_matlab() -> str:
+    """Open the MATLAB GUI application on the user's computer.
+
+    Use this when the user asks to open, launch, or start MATLAB.
+    """
+    result = matlab_open()
+    return json.dumps(result, ensure_ascii=False)
+
 
 @mcp.tool()
 def generate_matlab_script(experiment_type: str, parameters: dict[str, Any]) -> str:
