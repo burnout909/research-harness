@@ -6,6 +6,7 @@ export interface UploadedFile {
   name: string;
   path: string;
   size: number;
+  diskPath: string;
 }
 
 interface FileUploadProps {

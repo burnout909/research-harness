@@ -5,13 +5,15 @@ import type { Message } from "@/lib/api";
 import { createSession, sendMessageStreaming, connectSSE } from "@/lib/api";
 import MessageBubble from "./MessageBubble";
 import SplitToggle, { type SplitMode } from "../layout/SplitToggle";
+import { type FileInfo } from "../viewer/FileCard";
 
 interface ChatWindowProps {
   splitMode: SplitMode;
   onToggleSplit: () => void;
+  uploadedFiles: FileInfo[];
 }
 
-export default function ChatWindow({ splitMode, onToggleSplit }: ChatWindowProps) {
+export default function ChatWindow({ splitMode, onToggleSplit, uploadedFiles }: ChatWindowProps) {
   const [messages, setMessages] = useState<Message[]>([
     { role: "assistant", content: "Welcome to Research Harness. How can I help you today?" },
   ]);
@@ -118,8 +120,19 @@ export default function ChatWindow({ splitMode, onToggleSplit }: ChatWindowProps
     setLoading(true);
     scrollToBottom();
 
+    // Prepend uploaded file context so the AI agent knows file paths
+    let messageToSend = text;
+    if (uploadedFiles.length > 0) {
+      const fileLines = uploadedFiles
+        .filter((f) => f.diskPath)
+        .map((f) => `- ${f.name} (경로: ${f.diskPath})`);
+      if (fileLines.length > 0) {
+        messageToSend = `[업로드된 파일]\n${fileLines.join("\n")}\n\n${text}`;
+      }
+    }
+
     try {
-      await sendMessageStreaming(sessionId, text);
+      await sendMessageStreaming(sessionId, messageToSend);
       // Response will arrive via SSE — loading state cleared in onMessageUpdated
     } catch (err) {
       console.error("Send failed:", err);
@@ -130,7 +143,7 @@ export default function ChatWindow({ splitMode, onToggleSplit }: ChatWindowProps
       ]);
       setLoading(false);
     }
-  }, [input, loading, sessionId, scrollToBottom]);
+  }, [input, loading, sessionId, scrollToBottom, uploadedFiles]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.nativeEvent.isComposing) return;

@@ -50,6 +50,7 @@ export default function Home() {
       type: getFileType(f.name),
       path: f.path,
       size: formatSize(f.size),
+      diskPath: f.diskPath,
     }));
     setUploadedFiles((prev) => [...prev, ...newFiles]);
   }, []);
@@ -71,7 +72,7 @@ export default function Home() {
             </div>
             <ResizeHandle direction="horizontal" onMouseDown={viewerResize.onMouseDown} />
             <div className="flex-1 overflow-hidden">
-              <ChatWindow splitMode={splitMode} onToggleSplit={toggleSplit} />
+              <ChatWindow splitMode={splitMode} onToggleSplit={toggleSplit} uploadedFiles={uploadedFiles} />
             </div>
           </>
         ) : (
@@ -82,7 +83,7 @@ export default function Home() {
             </div>
             <ResizeHandle direction="vertical" onMouseDown={viewerResize.onMouseDown} />
             <div className="flex-1 overflow-hidden">
-              <ChatWindow splitMode={splitMode} onToggleSplit={toggleSplit} />
+              <ChatWindow splitMode={splitMode} onToggleSplit={toggleSplit} uploadedFiles={uploadedFiles} />
             </div>
           </div>
         )}

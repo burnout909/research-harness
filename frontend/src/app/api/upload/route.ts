@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
 
     await mkdir(UPLOAD_DIR, { recursive: true });
 
-    const results: { name: string; path: string; size: number }[] = [];
+    const results: { name: string; path: string; size: number; diskPath: string }[] = [];
     const errors: { name: string; error: string }[] = [];
 
     for (const file of files) {
@@ -55,6 +55,7 @@ export async function POST(request: NextRequest) {
         name: file.name,
         path: `/api/files/${uniqueName}`,
         size: file.size,
+        diskPath: filePath,
       });
     }
 

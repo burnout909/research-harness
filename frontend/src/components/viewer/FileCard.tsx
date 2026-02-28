@@ -5,6 +5,7 @@ export interface FileInfo {
   type: "xlsx" | "csv" | "docx" | "pdf" | "png" | "jpg" | "svg" | "unknown";
   path: string;
   size?: string;
+  diskPath?: string;
 }
 
 interface FileCardProps {
