@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Message } from "@/lib/api";
-import { createSession, sendMessage } from "@/lib/api";
+import { createSession, sendMessageStreaming, connectSSE } from "@/lib/api";
 import MessageBubble from "./MessageBubble";
 import SplitToggle, { type SplitMode } from "../layout/SplitToggle";
 
@@ -18,8 +18,11 @@ export default function ChatWindow({ splitMode, onToggleSplit }: ChatWindowProps
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [streamingText, setStreamingText] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
-  const abortRef = useRef<AbortController | null>(null);
+  const streamingTextRef = useRef("");
+  const processedMsgIds = useRef(new Set<string>());
+  const sendingRef = useRef(false);
 
   const scrollToBottom = useCallback(() => {
     setTimeout(() => {
@@ -52,9 +55,49 @@ export default function ChatWindow({ splitMode, onToggleSplit }: ChatWindowProps
     return () => { cancelled = true; };
   }, []);
 
+  // Connect SSE when session is ready
+  useEffect(() => {
+    if (!sessionId) return;
+
+    const cleanup = connectSSE(sessionId, {
+      onDelta: (delta) => {
+        setStreamingText((prev) => {
+          const next = prev + delta;
+          streamingTextRef.current = next;
+          return next;
+        });
+        scrollToBottom();
+      },
+      onMessageComplete: (info) => {
+        console.log("[SSE] message.updated:", JSON.stringify(info));
+        // Only finalize on completed assistant messages, deduplicate by ID
+        if (info.role !== "assistant" || !info.time.completed) return;
+        if (processedMsgIds.current.has(info.id)) return;
+        processedMsgIds.current.add(info.id);
+        const current = streamingTextRef.current;
+        if (current) {
+          setMessages((prev) => {
+            if (prev.some((msg) => msg.id === info.id)) return prev;
+            return [...prev, { id: info.id, role: "assistant", content: current }];
+          });
+        }
+        streamingTextRef.current = "";
+        setStreamingText("");
+        sendingRef.current = false;
+        setLoading(false);
+        scrollToBottom();
+      },
+      onError: (err) => {
+        console.error("SSE error:", err);
+      },
+    });
+
+    return cleanup;
+  }, [sessionId, scrollToBottom]);
+
   const handleSend = useCallback(async () => {
     const text = input.trim();
-    if (!text || loading) return;
+    if (!text || loading || sendingRef.current) return;
 
     if (!sessionId) {
       setMessages((prev) => [
@@ -66,37 +109,31 @@ export default function ChatWindow({ splitMode, onToggleSplit }: ChatWindowProps
       return;
     }
 
+    sendingRef.current = true;
     const userMsg: Message = { role: "user", content: text };
     setMessages((prev) => [...prev, userMsg]);
     setInput("");
+    streamingTextRef.current = "";
+    setStreamingText("");
     setLoading(true);
     scrollToBottom();
 
-    const abort = new AbortController();
-    abortRef.current = abort;
-
     try {
-      const { text: replyText } = await sendMessage(sessionId, text, { signal: abort.signal });
+      await sendMessageStreaming(sessionId, text);
+      // Response will arrive via SSE — loading state cleared in onMessageUpdated
+    } catch (err) {
+      console.error("Send failed:", err);
+      sendingRef.current = false;
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: replyText || "(No response)" },
+        { role: "assistant", content: `메시지 전송 실패: ${(err as Error).message}` },
       ]);
-    } catch (err) {
-      if ((err as Error).name !== "AbortError") {
-        console.error("Send failed:", err);
-        setMessages((prev) => [
-          ...prev,
-          { role: "assistant", content: `메시지 전송 실패: ${(err as Error).message}` },
-        ]);
-      }
-    } finally {
       setLoading(false);
-      abortRef.current = null;
-      scrollToBottom();
     }
   }, [input, loading, sessionId, scrollToBottom]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.nativeEvent.isComposing) return;
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSend();
@@ -125,8 +162,12 @@ export default function ChatWindow({ splitMode, onToggleSplit }: ChatWindowProps
         ))}
         {loading && (
           <div className="flex justify-start mb-3">
-            <div className="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-400">
-              <span className="animate-pulse">Thinking...</span>
+            <div className="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-200 max-w-[80%]">
+              {streamingText ? (
+                <span className="whitespace-pre-wrap">{streamingText}<span className="animate-pulse text-zinc-400">▍</span></span>
+              ) : (
+                <span className="animate-pulse text-zinc-400">Thinking...</span>
+              )}
             </div>
           </div>
         )}
