@@ -1363,6 +1363,10 @@ export type Config = {
    */
   model?: string
   /**
+   * Ordered list of fallback models to try when the current model's quota is exhausted
+   */
+  model_fallbacks?: Array<string>
+  /**
    * Small model to use for tasks like title generation in the format of provider/model
    */
   small_model?: string

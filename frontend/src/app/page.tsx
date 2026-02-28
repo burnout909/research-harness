@@ -32,6 +32,7 @@ function formatSize(bytes: number): string {
 export default function Home() {
   const [splitMode, setSplitMode] = useState<SplitMode>("horizontal");
   const [uploadedFiles, setUploadedFiles] = useState<FileInfo[]>([]);
+  const [selectedFile, setSelectedFile] = useState<FileInfo | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   const viewerResize = useResizable({
@@ -62,6 +63,7 @@ export default function Home() {
       if (exists) return prev;
       return [...prev, file];
     });
+    setSelectedFile(file);
   }, []);
 
   const handleFileCreated = useCallback((file: FileInfo) => {
@@ -90,7 +92,7 @@ export default function Home() {
           // Horizontal split: viewer | chat (side by side)
           <>
             <div style={{ width: viewerResize.size }} className="flex-shrink-0 overflow-hidden">
-              <ViewerPanel uploadedFiles={uploadedFiles} />
+              <ViewerPanel uploadedFiles={uploadedFiles} selectedFile={selectedFile} />
             </div>
             <ResizeHandle direction="horizontal" onMouseDown={viewerResize.onMouseDown} />
             <div className="flex-1 overflow-hidden">
@@ -101,7 +103,7 @@ export default function Home() {
           // Vertical split: viewer on top, chat on bottom (stacked)
           <div className="flex flex-col flex-1 overflow-hidden">
             <div style={{ height: viewerResize.size }} className="flex-shrink-0 overflow-hidden">
-              <ViewerPanel uploadedFiles={uploadedFiles} />
+              <ViewerPanel uploadedFiles={uploadedFiles} selectedFile={selectedFile} />
             </div>
             <ResizeHandle direction="vertical" onMouseDown={viewerResize.onMouseDown} />
             <div className="flex-1 overflow-hidden">

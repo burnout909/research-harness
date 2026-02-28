@@ -8,9 +8,10 @@ import ImageViewer from "./ImageViewer";
 
 interface ViewerPanelProps {
   uploadedFiles?: FileInfo[];
+  selectedFile?: FileInfo | null;
 }
 
-export default function ViewerPanel({ uploadedFiles = [] }: ViewerPanelProps) {
+export default function ViewerPanel({ uploadedFiles = [], selectedFile = null }: ViewerPanelProps) {
   const [files, setFiles] = useState<FileInfo[]>([]);
   const [activeFile, setActiveFile] = useState<FileInfo | null>(null);
   const [fileData, setFileData] = useState<ArrayBuffer | null>(null);
@@ -34,6 +35,13 @@ export default function ViewerPanel({ uploadedFiles = [] }: ViewerPanelProps) {
       setActiveFile(latest);
     }
   }, [uploadedFiles]);
+
+  // Activate file selected from sidebar (handles re-selecting already-opened files)
+  useEffect(() => {
+    if (selectedFile) {
+      setActiveFile(selectedFile);
+    }
+  }, [selectedFile]);
 
   // Fetch file data when active file changes
   const fetchFileData = useCallback(async (file: FileInfo) => {

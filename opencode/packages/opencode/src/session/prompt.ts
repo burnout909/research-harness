@@ -32,6 +32,7 @@ import { ulid } from "ulid"
 import { spawn } from "child_process"
 import { Command } from "../command"
 import { $, fileURLToPath, pathToFileURL } from "bun"
+import { Config } from "../config/config"
 import { ConfigMarkdown } from "../config/markdown"
 import { SessionSummary } from "./summary"
 import { NamedError } from "@opencode-ai/util/error"
@@ -700,6 +701,38 @@ export namespace SessionPrompt {
         }
       }
 
+      if (result === "quota_exhausted") {
+        const cfg = await Config.get()
+        const fallbacks = cfg.model_fallbacks ?? []
+        const currentModelStr = `${lastUser.model.providerID}/${lastUser.model.modelID}`
+        const currentIdx = fallbacks.indexOf(currentModelStr)
+        // Try: if current model is the primary (not in fallbacks), start at index 0
+        // If current model is in fallbacks, try the next one
+        const nextIdx = currentIdx === -1 ? 0 : currentIdx + 1
+        if (nextIdx < fallbacks.length) {
+          const fallback = Provider.parseModel(fallbacks[nextIdx])
+          log.info("quota_exhausted, falling back", { from: currentModelStr, to: fallbacks[nextIdx] })
+          lastUser.model = { providerID: fallback.providerID, modelID: fallback.modelID }
+          await Session.updateMessage(lastUser)
+          await Session.updatePart({
+            id: Identifier.ascending("part"),
+            messageID: processor.message.id,
+            sessionID,
+            type: "text",
+            text: `Quota exhausted for ${currentModelStr}. Switching to ${fallbacks[nextIdx]}...`,
+            time: { start: Date.now(), end: Date.now() },
+          })
+          continue
+        }
+        // No more fallbacks — surface error and stop
+        Bus.publish(Session.Event.Error, {
+          sessionID,
+          error: new NamedError.Unknown({
+            message: "All model quotas exhausted. Please try again later or add credits.",
+          }).toObject(),
+        })
+        break
+      }
       if (result === "stop") break
       if (result === "compact") {
         await SessionCompaction.create({

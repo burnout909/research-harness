@@ -3,6 +3,7 @@
 
   // ── 모델 설정 ──
   "model": "google/gemini-3-pro-preview",
+  "model_fallbacks": ["google/gemini-2.5-pro", "google/gemini-2.5-flash"],
   "small_model": "google/gemini-3-flash-preview",
 
   // ── 기본 에이전트 ──

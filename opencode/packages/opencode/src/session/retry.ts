@@ -58,6 +58,19 @@ export namespace SessionRetry {
     return Math.min(RETRY_INITIAL_DELAY * Math.pow(RETRY_BACKOFF_FACTOR, attempt - 1), RETRY_MAX_DELAY_NO_HEADERS)
   }
 
+  export function isQuotaExhausted(error: ReturnType<NamedError["toObject"]>): boolean {
+    if (!MessageV2.APIError.isInstance(error)) return false
+    const { statusCode, responseBody, isRetryable, responseHeaders } = error.data
+    if (statusCode !== 429) return false
+    // Permanent quota exhaustion (not temporary rate limit)
+    if (responseBody?.includes("FreeUsageLimitError")) return true
+    const body = (responseBody ?? "").toLowerCase()
+    if (body.includes("quota") || body.includes("exhausted") || body.includes("resource_exhausted")) return true
+    // 429 without retry-after headers and not retryable = permanent quota limit
+    if (!isRetryable && !responseHeaders?.["retry-after"] && !responseHeaders?.["retry-after-ms"]) return true
+    return false
+  }
+
   export function retryable(error: ReturnType<NamedError["toObject"]>) {
     // context overflow errors should not be retried
     if (MessageV2.ContextOverflowError.isInstance(error)) return undefined

@@ -356,6 +356,12 @@ export namespace SessionProcessor {
             if (MessageV2.ContextOverflowError.isInstance(error)) {
               // TODO: Handle context overflow error
             }
+            if (SessionRetry.isQuotaExhausted(error)) {
+              input.assistantMessage.error = error
+              input.assistantMessage.time.completed = Date.now()
+              await Session.updateMessage(input.assistantMessage)
+              return "quota_exhausted"
+            }
             const retry = SessionRetry.retryable(error)
             if (retry !== undefined) {
               attempt++
