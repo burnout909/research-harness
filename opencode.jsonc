@@ -22,8 +22,9 @@
   "mcp": {
     "research-harness": {
       "type": "local",
-      "command": ["/Users/minseongkim/Desktop/research-harness/python-tools/.venv/bin/python3", "/Users/minseongkim/Desktop/research-harness/python-tools/server.py"],
+      "command": ["python3", "/Users/jun/Desktop/researchcat/research-harness/python-tools/server.py"],
       "environment": {
+        "PROJECT_ROOT": "/Users/jun/Desktop/researchcat/research-harness",
         "MATLAB_ROOT": "/usr/local/MATLAB/R2024b",
         "MATLAB_MOCK": "false"
       }

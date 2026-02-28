@@ -2,9 +2,22 @@
 from __future__ import annotations
 
 import json
+import os
+import sys
+from pathlib import Path
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
+
+# Ensure `from tools.xxx` imports work regardless of cwd.
+_server_dir = str(Path(__file__).resolve().parent)
+if _server_dir not in sys.path:
+    sys.path.insert(0, _server_dir)
+
+# Ensure working directory is the project root so relative paths like
+# "data/outputs/result.xlsx" resolve correctly.
+_project_root = os.environ.get("PROJECT_ROOT", str(Path(__file__).resolve().parent.parent))
+os.chdir(_project_root)
 
 from tools.excel import excel_read, excel_write, mat_to_excel
 from tools.docx_tool import docx_read, docx_write, manuscript_generate

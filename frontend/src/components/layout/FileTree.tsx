@@ -24,6 +24,7 @@ interface FileTreeProps {
 }
 
 const DISPLAY_NAMES: Record<string, string> = {
+  uploads: "original",
   outputs: "result",
 };
 
