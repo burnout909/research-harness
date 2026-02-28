@@ -1,4 +1,5 @@
 """Data analysis and plotting tools using pandas and matplotlib."""
+from __future__ import annotations
 
 import json
 from io import StringIO
@@ -78,22 +79,21 @@ def plot_create(
     if y_col:
         plot_kwargs["y"] = y_col
 
-    match chart_type:
-        case "bar":
-            df.plot.bar(**plot_kwargs)
-        case "line":
-            df.plot.line(**plot_kwargs)
-        case "scatter":
-            if not x_col or not y_col:
-                raise ValueError("scatter requires both x_col and y_col")
-            df.plot.scatter(**plot_kwargs)
-        case "hist":
-            df.plot.hist(**plot_kwargs)
-        case "pie":
-            col = y_col or df.columns[0]
-            df[col].plot.pie(ax=ax, autopct="%1.1f%%")
-        case _:
-            raise ValueError(f"Unsupported chart_type: {chart_type}")
+    if chart_type == "bar":
+        df.plot.bar(**plot_kwargs)
+    elif chart_type == "line":
+        df.plot.line(**plot_kwargs)
+    elif chart_type == "scatter":
+        if not x_col or not y_col:
+            raise ValueError("scatter requires both x_col and y_col")
+        df.plot.scatter(**plot_kwargs)
+    elif chart_type == "hist":
+        df.plot.hist(**plot_kwargs)
+    elif chart_type == "pie":
+        col = y_col or df.columns[0]
+        df[col].plot.pie(ax=ax, autopct="%1.1f%%")
+    else:
+        raise ValueError(f"Unsupported chart_type: {chart_type}")
 
     if title:
         ax.set_title(title)

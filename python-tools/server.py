@@ -1,4 +1,5 @@
 """MCP Server entry point — registers all tools and runs the server."""
+from __future__ import annotations
 
 import json
 from typing import Any
@@ -12,6 +13,7 @@ from tools.matlab import (
     matlab_open,
     matlab_generate_script,
     matlab_run,
+    matlab_run_with_gui,
     matlab_check_convergence,
     matlab_get_figures,
 )
@@ -142,6 +144,22 @@ def run_matlab(script: str, work_dir: str | None = None) -> str:
         work_dir: Optional working directory.
     """
     result = matlab_run(script, work_dir)
+    return json.dumps(result, ensure_ascii=False)
+
+
+@mcp.tool()
+def run_matlab_gui(script: str, work_dir: str | None = None) -> str:
+    """Run a MATLAB script with GUI enabled (figure windows visible on screen).
+
+    Use this when the user wants to see MATLAB figure windows, animations,
+    or plots displayed directly on their screen. The MATLAB desktop opens
+    as a subprocess so all GUI elements are visible.
+
+    Args:
+        script: MATLAB script content to execute.
+        work_dir: Optional working directory for execution.
+    """
+    result = matlab_run_with_gui(script, work_dir)
     return json.dumps(result, ensure_ascii=False)
 
 

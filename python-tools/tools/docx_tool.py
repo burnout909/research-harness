@@ -1,4 +1,5 @@
 """DOCX read/write tools using python-docx."""
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Any

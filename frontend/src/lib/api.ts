@@ -24,12 +24,16 @@ export interface Message {
   id?: string;
   role: "user" | "assistant";
   content: string;
+  parts?: MessagePart[];
 }
 
 export interface MessagePart {
   id: string;
   type: string;
   text?: string;
+  name?: string;
+  args?: Record<string, unknown>;
+  state?: "pending" | "running" | "completed" | "error";
   [key: string]: unknown;
 }
 
@@ -215,5 +219,6 @@ export async function getSessionMessages(sessionId: string): Promise<Message[]> 
     id: m.info.id,
     role: m.info.role,
     content: extractTextFromParts(m) || (m.info.error?.message ?? ""),
+    parts: m.parts,
   }));
 }

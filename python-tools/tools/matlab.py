@@ -1,4 +1,5 @@
 """MATLAB tools with mock mode support."""
+from __future__ import annotations
 
 import json
 import os
@@ -28,6 +29,17 @@ def _get_engine():
 
 # ── Open MATLAB GUI ──────────────────────────────────────────────────
 
+def _find_matlab_app() -> str | None:
+    """Find the MATLAB .app bundle name on macOS."""
+    import glob
+    patterns = ["/Applications/MATLAB_R*.app", "/Applications/MATLAB.app"]
+    for pat in patterns:
+        matches = sorted(glob.glob(pat), reverse=True)
+        if matches:
+            return Path(matches[0]).name  # e.g. "MATLAB_R2025b.app"
+    return None
+
+
 def matlab_open() -> dict[str, Any]:
     """Open MATLAB GUI application on the user's machine.
 
@@ -37,7 +49,16 @@ def matlab_open() -> dict[str, Any]:
     system = platform.system()
     try:
         if system == "Darwin":
-            subprocess.Popen(["open", "-a", "MATLAB"])
+            app_name = _find_matlab_app()
+            if app_name:
+                # Remove .app suffix for open -a
+                name = app_name.replace(".app", "")
+                subprocess.Popen(["open", "-a", name])
+            else:
+                return {
+                    "success": False,
+                    "message": "MATLAB app not found in /Applications/.",
+                }
         elif system == "Windows":
             matlab_root = os.environ.get("MATLAB_ROOT", "")
             if matlab_root:
@@ -132,6 +153,8 @@ def matlab_generate_script(
 def matlab_run(script: str, work_dir: str | None = None) -> dict[str, Any]:
     """Run a MATLAB script and return the result.
 
+    Uses the locally installed MATLAB via subprocess (no matlab.engine needed).
+
     Args:
         script: MATLAB script content or path to .m file.
         work_dir: Working directory for execution.
@@ -143,32 +166,43 @@ def matlab_run(script: str, work_dir: str | None = None) -> dict[str, Any]:
     wd.mkdir(parents=True, exist_ok=True)
 
     if MOCK:
-        # Create mock output files
         mat_path = wd / "results.mat"
         fig_path = wd / "figure.png"
-
-        # Write a minimal mock .mat file (Level 5 MAT header)
         _write_mock_mat(mat_path)
-        # Write a minimal mock PNG
         _write_mock_png(fig_path)
-
         return {
             "output": "[MOCK] Script executed successfully.\n"
                       f"Created: {mat_path}, {fig_path}",
             "files": [str(mat_path), str(fig_path)],
         }
 
-    eng = _get_engine()
-    try:
-        eng.cd(str(wd))
-        script_path = wd / "_run.m"
-        script_path.write_text(script)
-        out = eng.eval(f"run('{script_path}')", nargout=0)
+    # Write script to file
+    script_path = wd / "_run.m"
+    script_path.write_text(script)
 
-        files = [str(f) for f in wd.iterdir() if f.name != "_run.m"]
-        return {"output": str(out) if out else "Completed.", "files": files}
-    finally:
-        eng.quit()
+    # Run via local MATLAB subprocess (headless / no GUI)
+    matlab_exe = _find_matlab_executable()
+    matlab_cmd = f"cd('{wd}'); run('{script_path}'); exit"
+    cmd = [matlab_exe, "-nosplash", "-nodesktop", "-batch", matlab_cmd]
+
+    proc = subprocess.run(
+        cmd, capture_output=True, timeout=600,
+    )
+
+    files = sorted(str(f) for f in wd.iterdir() if f.name != "_run.m")
+
+    output_text = proc.stdout.decode(errors="replace") if proc.stdout else ""
+    error_text = proc.stderr.decode(errors="replace") if proc.stderr else ""
+
+    result: dict[str, Any] = {
+        "output": output_text or "MATLAB execution completed.",
+        "files": files,
+        "returncode": proc.returncode,
+    }
+    if error_text:
+        result["errors"] = error_text
+
+    return result
 
 
 # ── Convergence check ────────────────────────────────────────────────
@@ -242,6 +276,108 @@ def matlab_get_figures(work_dir: str = ".") -> list[str]:
 
 
 # ── Mock helpers ─────────────────────────────────────────────────────
+
+# ── GUI execution (subprocess) ────────────────────────────────────────
+
+def _find_matlab_executable() -> str:
+    """Find the MATLAB executable path on the current platform."""
+    system = platform.system()
+
+    if system == "Darwin":
+        import glob as _glob
+
+        for pat in ["/Applications/MATLAB_R*.app"]:
+            matches = sorted(_glob.glob(pat), reverse=True)
+            if matches:
+                exe = Path(matches[0]) / "bin" / "matlab"
+                if exe.exists():
+                    return str(exe)
+        raise FileNotFoundError(
+            "MATLAB not found in /Applications/. "
+            "Install MATLAB or set MATLAB_ROOT environment variable."
+        )
+
+    elif system == "Windows":
+        matlab_root = os.environ.get("MATLAB_ROOT", "")
+        if matlab_root:
+            exe = Path(matlab_root) / "bin" / "matlab.exe"
+            if exe.exists():
+                return str(exe)
+        # Try PATH
+        import shutil
+        found = shutil.which("matlab")
+        if found:
+            return found
+        raise FileNotFoundError("MATLAB not found. Set MATLAB_ROOT or add matlab to PATH.")
+
+    else:  # Linux
+        import shutil
+        found = shutil.which("matlab")
+        if found:
+            return found
+        raise FileNotFoundError("MATLAB not found in PATH.")
+
+
+def matlab_run_with_gui(script: str, work_dir: str | None = None) -> dict[str, Any]:
+    """Run a MATLAB script via subprocess with GUI (figure windows visible).
+
+    Args:
+        script: MATLAB script content.
+        work_dir: Working directory for execution.
+
+    Returns:
+        Dict with 'output' and 'files' (created files).
+    """
+    wd = Path(work_dir) if work_dir else Path(tempfile.mkdtemp())
+    wd.mkdir(parents=True, exist_ok=True)
+
+    if MOCK:
+        mat_path = wd / "results.mat"
+        fig_path = wd / "figure.png"
+        _write_mock_mat(mat_path)
+        _write_mock_png(fig_path)
+        return {
+            "output": "[MOCK] Script executed with GUI successfully.\n"
+                      f"Created: {mat_path}, {fig_path}",
+            "files": [str(mat_path), str(fig_path)],
+        }
+
+    script_path = wd / "_run.m"
+    script_path.write_text(script)
+
+    matlab_exe = _find_matlab_executable()
+    matlab_cmd = f"cd('{wd}'); run('{script_path}'); pause(2); exit"
+    cmd = [matlab_exe, "-nosplash", "-r", matlab_cmd]
+
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    stdout, stderr = proc.communicate()
+
+    # Collect created files
+    files = sorted(str(f) for f in wd.iterdir() if f.name != "_run.m")
+
+    # Check for result JSON (e.g. from runRRTExperiment)
+    result_file = wd / "experiment_result.json"
+    if result_file.exists():
+        try:
+            experiment_data = json.loads(result_file.read_text())
+            return {
+                "output": "MATLAB GUI execution completed.",
+                "experiment_result": experiment_data,
+                "files": files,
+            }
+        except json.JSONDecodeError:
+            pass
+
+    output_text = stdout.decode(errors="replace") if stdout else ""
+    error_text = stderr.decode(errors="replace") if stderr else ""
+
+    return {
+        "output": output_text or "MATLAB GUI execution completed.",
+        "errors": error_text if error_text else None,
+        "returncode": proc.returncode,
+        "files": files,
+    }
+
 
 def _write_mock_mat(path: Path) -> None:
     """Write a minimal valid MAT-file v5 header."""

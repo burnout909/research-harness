@@ -1,9 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { Message } from "@/lib/api";
+import type { Message, MessagePart } from "@/lib/api";
 import { createSession, sendMessageStreaming, connectSSE } from "@/lib/api";
-import MessageBubble from "./MessageBubble";
+import MessageBlock from "./MessageBlock";
 import SplitToggle, { type SplitMode } from "../layout/SplitToggle";
 import { type FileInfo } from "../viewer/FileCard";
 
@@ -21,8 +21,10 @@ export default function ChatWindow({ splitMode, onToggleSplit, uploadedFiles }: 
   const [loading, setLoading] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [streamingText, setStreamingText] = useState("");
+  const [streamingParts, setStreamingParts] = useState<MessagePart[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const streamingTextRef = useRef("");
+  const streamingPartsRef = useRef<MessagePart[]>([]);
   const processedMsgIds = useRef(new Set<string>());
   const sendingRef = useRef(false);
 
@@ -70,21 +72,45 @@ export default function ChatWindow({ splitMode, onToggleSplit, uploadedFiles }: 
         });
         scrollToBottom();
       },
+      onPartUpdated: (part) => {
+        setStreamingParts((prev) => {
+          const idx = prev.findIndex((p) => p.id === part.id);
+          const next = idx >= 0
+            ? prev.map((p, i) => (i === idx ? part : p))
+            : [...prev, part];
+          streamingPartsRef.current = next;
+          return next;
+        });
+        scrollToBottom();
+      },
       onMessageComplete: (info) => {
         console.log("[SSE] message.updated:", JSON.stringify(info));
-        // Only finalize on completed assistant messages, deduplicate by ID
         if (info.role !== "assistant" || !info.time.completed) return;
         if (processedMsgIds.current.has(info.id)) return;
         processedMsgIds.current.add(info.id);
-        const current = streamingTextRef.current;
-        if (current) {
+
+        const currentText = streamingTextRef.current;
+        const currentParts = streamingPartsRef.current;
+
+        if (currentText || currentParts.length > 0) {
           setMessages((prev) => {
             if (prev.some((msg) => msg.id === info.id)) return prev;
-            return [...prev, { id: info.id, role: "assistant", content: current }];
+            return [
+              ...prev,
+              {
+                id: info.id,
+                role: "assistant",
+                content: currentText,
+                parts: currentParts.length > 0 ? currentParts : undefined,
+              },
+            ];
           });
         }
+
         streamingTextRef.current = "";
+        streamingPartsRef.current = [];
         setStreamingText("");
+        setStreamingParts([]);
         sendingRef.current = false;
         setLoading(false);
         scrollToBottom();
@@ -116,7 +142,9 @@ export default function ChatWindow({ splitMode, onToggleSplit, uploadedFiles }: 
     setMessages((prev) => [...prev, userMsg]);
     setInput("");
     streamingTextRef.current = "";
+    streamingPartsRef.current = [];
     setStreamingText("");
+    setStreamingParts([]);
     setLoading(true);
     scrollToBottom();
 
@@ -133,7 +161,6 @@ export default function ChatWindow({ splitMode, onToggleSplit, uploadedFiles }: 
 
     try {
       await sendMessageStreaming(sessionId, messageToSend);
-      // Response will arrive via SSE — loading state cleared in onMessageUpdated
     } catch (err) {
       console.error("Send failed:", err);
       sendingRef.current = false;
@@ -145,6 +172,30 @@ export default function ChatWindow({ splitMode, onToggleSplit, uploadedFiles }: 
     }
   }, [input, loading, sessionId, scrollToBottom, uploadedFiles]);
 
+  const handleChoiceSelect = useCallback((choice: string) => {
+    if (loading || sendingRef.current || !sessionId) return;
+
+    sendingRef.current = true;
+    const userMsg: Message = { role: "user", content: choice };
+    setMessages((prev) => [...prev, userMsg]);
+    streamingTextRef.current = "";
+    streamingPartsRef.current = [];
+    setStreamingText("");
+    setStreamingParts([]);
+    setLoading(true);
+    scrollToBottom();
+
+    sendMessageStreaming(sessionId, choice).catch((err) => {
+      console.error("Send failed:", err);
+      sendingRef.current = false;
+      setMessages((prev) => [
+        ...prev,
+        { role: "assistant", content: `메시지 전송 실패: ${(err as Error).message}` },
+      ]);
+      setLoading(false);
+    });
+  }, [loading, sessionId, scrollToBottom]);
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.nativeEvent.isComposing) return;
     if (e.key === "Enter" && !e.shiftKey) {
@@ -154,7 +205,7 @@ export default function ChatWindow({ splitMode, onToggleSplit, uploadedFiles }: 
   };
 
   return (
-    <div className="flex flex-col h-full bg-zinc-900">
+    <div className="flex flex-col h-full bg-zinc-950">
       {/* Title bar */}
       <div className="flex items-center justify-between px-4 py-2 border-b border-zinc-800 flex-shrink-0">
         <div className="flex items-center gap-2">
@@ -171,40 +222,28 @@ export default function ChatWindow({ splitMode, onToggleSplit, uploadedFiles }: 
       {/* Messages */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-3">
         {messages.map((msg, i) => (
-          <MessageBubble key={i} message={msg} />
+          <MessageBlock key={msg.id ?? i} message={msg} onChoiceSelect={handleChoiceSelect} />
         ))}
         {loading && (
-          <div className="flex justify-start mb-3">
-            <div className="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-200 max-w-[80%]">
-              {streamingText ? (
-                <span className="whitespace-pre-wrap">{streamingText}<span className="animate-pulse text-zinc-400">▍</span></span>
-              ) : (
-                <span className="animate-pulse text-zinc-400">Thinking...</span>
-              )}
-            </div>
-          </div>
+          <MessageBlock
+            message={{ role: "assistant", content: "" }}
+            isStreaming
+            streamingText={streamingText}
+            streamingParts={streamingParts}
+          />
         )}
       </div>
 
       {/* Input */}
       <div className="border-t border-zinc-800 p-3 flex-shrink-0">
-        <div className="flex gap-2">
-          <textarea
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Type a message... (Enter to send, Shift+Enter for newline)"
-            rows={1}
-            className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-200 placeholder-zinc-500 resize-none focus:outline-none focus:border-blue-500 transition-colors"
-          />
-          <button
-            onClick={handleSend}
-            disabled={loading || !input.trim()}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-zinc-700 disabled:text-zinc-500 text-white text-sm rounded-lg transition-colors"
-          >
-            Send
-          </button>
-        </div>
+        <textarea
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder="Type a message... (Enter to send, Shift+Enter for newline)"
+          rows={1}
+          className="w-full bg-zinc-950 border border-zinc-800 rounded px-3 py-2 text-sm text-zinc-200 placeholder-zinc-500 font-mono resize-none focus:outline-none focus:border-zinc-600 transition-colors"
+        />
       </div>
     </div>
   );

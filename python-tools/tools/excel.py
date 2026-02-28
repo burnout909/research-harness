@@ -1,4 +1,5 @@
 """Excel read/write tools using openpyxl."""
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
