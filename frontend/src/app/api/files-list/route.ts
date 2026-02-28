@@ -48,7 +48,7 @@ async function scanDir(dir: string, baseDir: string): Promise<FileEntry[]> {
   return entries;
 }
 
-const VISIBLE_DIRS = ["uploads", "outputs"];
+const VISIBLE_DIRS = ["uploads", "working", "outputs"];
 
 export async function GET() {
   try {
