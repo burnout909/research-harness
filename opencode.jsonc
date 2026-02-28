@@ -26,7 +26,8 @@
       "environment": {
         "MATLAB_ROOT": "/usr/local/MATLAB/R2024b",
         "MATLAB_MOCK": "false"
-      }
+      },
+      "timeout": 600000
     }
   },
 
