@@ -1,0 +1,9 @@
+# MCP Server dependencies
+mcp
+openpyxl
+python-docx
+pandas
+matplotlib
+scipy
+numpy
+# matlabengine  # only needed when MATLAB is installed
